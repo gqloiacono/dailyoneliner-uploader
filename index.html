@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Daily One Liner | Image Uploader</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{margin:0;background:#071a2f;color:#f7fbff}main{max-width:760px;margin:48px auto;padding:24px}.panel{border:1px solid #34516b;border-radius:18px;padding:26px;background:#102b47}h1{font-size:2rem;margin:0 0 8px}p{line-height:1.55;color:#c5d9e8}label{display:block;font-weight:650;margin:20px 0 8px}input{box-sizing:border-box;width:100%;padding:12px;border:1px solid #63819b;border-radius:9px;background:#071a2f;color:#fff}button{background:#e8f4ff;color:#092743;border:0;padding:13px 18px;border-radius:10px;font-weight:700;cursor:pointer;margin-top:18px}button:disabled{opacity:.55;cursor:wait}.small{font-size:.85rem}#results{white-space:pre-wrap;overflow-wrap:anywhere;background:#071a2f;border-radius:10px;padding:14px;min-height:50px}a{color:#9cdeff}.error{color:#ffb9b9}.ok{color:#a7f3cf}</style></head>
+<body><main><div class="panel"><h1>The Daily One Liner</h1><p>Approved graphic uploader. Uploads PNGs directly from your browser to Cloudinary. No installation and no API secret.</p>
+<label for="cloud">Cloudinary cloud name</label><input id="cloud" value="rqssawor" autocomplete="off" spellcheck="false">
+<label for="preset">Unsigned upload preset</label><input id="preset" placeholder="Enter the preset name from Cloudinary" autocomplete="off" spellcheck="false">
+<label for="files">Approved PNG files (up to 20, max 10 MB each)</label><input id="files" type="file" accept="image/png,.png" multiple>
+<button id="upload">Upload approved images</button><p id="status" role="status" aria-live="polite"></p>
+<h2>Uploaded URLs</h2><div id="results">No uploads yet.</div><button id="copy" disabled>Copy URLs for ChatGPT</button><button id="download" disabled>Download uploaded_urls.json</button>
+<p class="small">Security: The preset must be configured as <strong>Unsigned</strong> in Cloudinary with PNG-only uploads, a dedicated folder, and a file-size limit. A public upload page and unsigned preset can be used by anyone who knows both values; disable or rotate the preset if it is abused. Files go directly to Cloudinary and are never sent to GitHub. No credentials are stored by this page.</p>
+</div></main>
+<script>
+const $=id=>document.getElementById(id);let uploaded=[];
+const update=()=>{$('results').textContent=uploaded.length?JSON.stringify(uploaded,null,2):'No uploads yet.';$('copy').disabled=!uploaded.length;$('download').disabled=!uploaded.length};
+$('upload').addEventListener('click',async()=>{
+ const cloud=$('cloud').value.trim(),preset=$('preset').value.trim(),files=[...$('files').files];
+ if(!/^[a-zA-Z0-9_-]+$/.test(cloud)||!/^[a-zA-Z0-9_-]+$/.test(preset)){alert('Enter a valid cloud name and unsigned preset.');return}
+ if(!files.length||files.length>20){alert('Select 1 to 20 PNGs.');return}
+ if(files.some(f=>f.type!=='image/png'||!f.name.toLowerCase().endsWith('.png')||f.size>10*1024*1024)){alert('Only PNG files up to 10 MB each are accepted.');return}
+ $('upload').disabled=true;uploaded=[];update();
+ for(let i=0;i<files.length;i++){
+  const file=files[i];$('status').textContent='Uploading '+(i+1)+'/'+files.length+': '+file.name;
+  const form=new FormData();form.append('file',file);form.append('upload_preset',preset);
+  try{
+   const res=await fetch('https://api.cloudinary.com/v1_1/'+encodeURIComponent(cloud)+'/image/upload',{method:'POST',body:form});
+   const data=await res.json();if(!res.ok||!data.secure_url)throw Error(data.error?.message||'Upload failed ('+res.status+')');
+   uploaded.push({file:file.name,public_id:data.public_id,url:data.secure_url});update();
+  }catch(e){$('status').textContent='Stopped at '+file.name+': '+e.message+'. Previous successful URLs remain below.';$('status').className='error';$('upload').disabled=false;return}
+ }
+ $('status').textContent='Uploaded '+uploaded.length+' image(s) successfully.';$('status').className='ok';$('upload').disabled=false;
+});
+$('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(JSON.stringify(uploaded,null,2));$('status').textContent='URLs copied. Paste them into ChatGPT.'}catch(e){$('status').textContent='Copy unavailable. Select and copy the JSON shown above.'}});
+$('download').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(uploaded,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='uploaded_urls.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+</script></body></html>
